@@ -460,7 +460,7 @@ class MessageProcessor:
                 probabilities[i]=-1
             indices=sorted(range(len(probabilities)), key=lambda x: probabilities[x])[-3:]
             for i in indices:
-                print(actions[i], probabilities[i])
+                logger.info(str(actions[i]) + ":" + str(probabilities[i]))
             max_conf=probabilities.index(max(probabilities))
 
         else:
