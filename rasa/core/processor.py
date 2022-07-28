@@ -228,6 +228,7 @@ class MessageProcessor:
             {"action": a, "score": p}
             for a, p in zip(self.domain.action_names_or_texts, prediction.probabilities)
         ]
+
         return {
             "scores": scores,
             "policy": prediction.policy_name,
@@ -449,8 +450,24 @@ class MessageProcessor:
 
         prediction = self._predict_next_with_tracker(tracker)
 
+        if (prediction.max_confidence_index!=0):
+            actions=[]
+            probabilities=[]
+            for a, p in zip(self.domain.action_names_or_texts, prediction.probabilities):
+                actions.append(a)
+                probabilities.append(p)
+            for i in range(13):
+                probabilities[i]=-1
+            indices=sorted(range(len(probabilities)), key=lambda x: probabilities[x])[-3:]
+            for i in indices:
+                print(actions[i], probabilities[i])
+            max_conf=probabilities.index(max(probabilities))
+
+        else:
+            max_conf=prediction.max_confidence_index
+
         action = rasa.core.actions.action.action_for_index(
-            prediction.max_confidence_index, self.domain, self.action_endpoint
+            max_conf, self.domain, self.action_endpoint
         )
 
         logger.debug(
