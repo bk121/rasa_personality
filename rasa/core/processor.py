@@ -493,7 +493,7 @@ class MessageProcessor:
 
         prediction = self._predict_next_with_tracker(tracker)
 
-        if (prediction.max_confidence_index!=0):
+        if prediction.max_confidence_index!=0 and rasa.core.emotion.bot_emotion!="n/a":
             if max(prediction.probabilities)==1.0:
                 selected_index=prediction.max_confidence_index
             else:
