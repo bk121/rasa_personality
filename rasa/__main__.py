@@ -30,6 +30,9 @@ from rasa.cli.utils import parse_last_positional_argument_as_model_path
 from rasa.shared.exceptions import RasaException
 from rasa.shared.utils.cli import print_error
 from rasa.utils.common import configure_logging_and_warnings
+from rasa.core.emotion import init_emotion
+
+init_emotion()
 
 logger = logging.getLogger(__name__)
 

@@ -14,7 +14,7 @@ from rasa.core.channels.channel import (
     CollectingOutputChannel,
     UserMessage,
 )
-
+import rasa.core.emotion 
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,9 @@ class RestInput(InputChannel):
     # noinspection PyMethodMayBeStatic
     def _extract_message(self, req: Request) -> Optional[Text]:
         return req.json.get("message", None)
+
+    def _extract_emotion(self, req: Request) -> Optional[Text]:
+        return req.json.get("emotion", None)
 
     def _extract_input_channel(self, req: Request) -> Text:
         return req.json.get("input_channel") or self.name()
@@ -107,6 +110,8 @@ class RestInput(InputChannel):
         async def receive(request: Request) -> Union[ResponseStream, HTTPResponse]:
             sender_id = await self._extract_sender(request)
             text = self._extract_message(request)
+            rasa.core.emotion.bot_emotion = self._extract_emotion(request)
+            logger.info("bot emotion is: " + rasa.core.emotion.bot_emotion)
             should_use_stream = rasa.utils.endpoints.bool_arg(
                 request, "stream", default=False
             )

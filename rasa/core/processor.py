@@ -67,9 +67,52 @@ from rasa.shared.nlu.constants import (
 )
 from rasa.utils.endpoints import EndpointConfig
 
+import rasa.core.emotion 
+from sklearn.metrics import euclidean_distances
+import math
+
 logger = logging.getLogger(__name__)
 
 MAX_NUMBER_OF_PREDICTIONS = int(os.environ.get("MAX_NUMBER_OF_PREDICTIONS", "10"))
+
+def emotionally_closest_action(top_actions, top_indices, top_probabilities):
+    shortest_distance=2
+    emotionally_closest_index=-1
+    for action, index, probability in zip(top_actions, top_indices, top_probabilities):
+        action_components=action.split(",")
+        if len(action_components)==1:
+            if probability>0.3:
+                return index
+            continue
+        emotion=action_components[1]
+        sentiment=action_components[2]
+        thayers_coordinates=plot_on_thayers(emotion, sentiment)
+        distance = euclidean_distance(thayers_coordinates, rasa.core.emotion.bot_emotion)
+        if distance < shortest_distance:
+            shortest_distance=distance
+            emotionally_closest_index=index
+    return top_indices[sorted(range(len(top_probabilities)), key=lambda x: top_probabilities[x])[-1:]] if emotionally_closest_index<0 else emotionally_closest_index
+
+def plot_on_thayers(emotion, sentiment):
+    if emotion=="sadness":
+        return [-0.7, -0.7]
+    elif emotion=="fear":
+        return [-0.7, 0.7]
+    elif emotion=="surprise" and sentiment=="positive":
+        return [0.1, 0.9]
+    elif emotion=="surprise" and sentiment=="negative":
+        return [-0.1, 0.9]
+    elif emotion=="anger":
+        return [-0.4, 0.8]
+    elif emotion=="disgust":
+        return [-0.9, 0.4]
+    elif emotion=="joy":
+        return [0.7, 0.7]
+    return [0,0]
+
+def euclidean_distance(thayers_coordinates, bot_emotion):
+    bot_coordinates=bot_emotion.split(",")
+    return math.sqrt(math.pow(thayers_coordinates[0]-float(bot_coordinates[0]),2)+math.pow(thayers_coordinates[1]-float(bot_coordinates[1]),2))
 
 
 class MessageProcessor:
@@ -451,23 +494,31 @@ class MessageProcessor:
         prediction = self._predict_next_with_tracker(tracker)
 
         if (prediction.max_confidence_index!=0):
-            actions=[]
-            probabilities=[]
-            for a, p in zip(self.domain.action_names_or_texts, prediction.probabilities):
-                actions.append(a)
-                probabilities.append(p)
-            for i in range(13):
-                probabilities[i]=-1
-            indices=sorted(range(len(probabilities)), key=lambda x: probabilities[x])[-3:]
-            for i in indices:
-                logger.info(str(actions[i]) + ":" + str(probabilities[i]))
-            max_conf=probabilities.index(max(probabilities))
-
+            if max(prediction.probabilities)==1.0:
+                selected_index=prediction.max_confidence_index
+            else:
+                actions=[]
+                probabilities=[]
+                for a, p in zip(self.domain.action_names_or_texts, prediction.probabilities):
+                    actions.append(a)
+                    probabilities.append(p)
+                for i in range(13):
+                    probabilities[i]=-1
+                top_indices=sorted(range(len(probabilities)), key=lambda x: probabilities[x])[-5:]
+                top_actions=[]
+                top_probabilities=[]
+                for i in top_indices:
+                    logger.info(str(actions[i]) + ":" + str(probabilities[i]))
+                    top_actions.append(actions[i])
+                    top_probabilities.append(probabilities[i])
+                selected_index=emotionally_closest_action(top_actions, top_indices, top_probabilities)
+                logger.info("Selected Response:" + actions[selected_index])
         else:
-            max_conf=prediction.max_confidence_index
-
+            selected_index=prediction.max_confidence_index
+        
+        
         action = rasa.core.actions.action.action_for_index(
-            max_conf, self.domain, self.action_endpoint
+            selected_index, self.domain, self.action_endpoint
         )
 
         logger.debug(
