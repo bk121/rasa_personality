@@ -5,6 +5,6 @@ from sqlalchemy import null
 
 def init_emotion():
     global bot_emotion 
-    bot_emotion = None
+    bot_emotion = "n/a"
     
 
