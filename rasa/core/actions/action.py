@@ -500,8 +500,6 @@ class ActionRetrieveResponse(ActionBotResponse):
 
         logger.debug(f"Picking response from selector of type {query_key}")
         selected = response_selector_properties[query_key]
-        logger.info(selected)
-
         self.utter_action="utter_"+emotionally_closest_action(selected["ranking"])
 
         # Override utter action of ActionBotResponse

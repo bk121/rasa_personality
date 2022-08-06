@@ -28,6 +28,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+import rasa.core.emotion
+
 
 class UserMessage:
     """Represents an incoming message.
@@ -352,6 +354,7 @@ class CollectingOutputChannel(OutputChannel):
         obj = {
             "recipient_id": recipient_id,
             "text": text,
+            "bot_thayers": rasa.core.emotion.bot_emotion,
             "image": image,
             "buttons": buttons,
             "attachment": attachment,
