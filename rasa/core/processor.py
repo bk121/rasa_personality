@@ -67,52 +67,9 @@ from rasa.shared.nlu.constants import (
 )
 from rasa.utils.endpoints import EndpointConfig
 
-import rasa.core.emotion 
-from sklearn.metrics import euclidean_distances
-import math
-
 logger = logging.getLogger(__name__)
 
 MAX_NUMBER_OF_PREDICTIONS = int(os.environ.get("MAX_NUMBER_OF_PREDICTIONS", "10"))
-
-def emotionally_closest_action(top_actions, top_indices, top_probabilities):
-    shortest_distance=2
-    emotionally_closest_index=-1
-    for action, index, probability in zip(top_actions, top_indices, top_probabilities):
-        action_components=action.split(",")
-        if len(action_components)==1:
-            if probability>0.3:
-                return index
-            continue
-        emotion=action_components[1]
-        sentiment=action_components[2]
-        thayers_coordinates=plot_on_thayers(emotion, sentiment)
-        distance = euclidean_distance(thayers_coordinates, rasa.core.emotion.bot_emotion)
-        if distance < shortest_distance:
-            shortest_distance=distance
-            emotionally_closest_index=index
-    return top_indices[sorted(range(len(top_probabilities)), key=lambda x: top_probabilities[x])[-1:]] if emotionally_closest_index<0 else emotionally_closest_index
-
-def plot_on_thayers(emotion, sentiment):
-    if emotion=="sadness":
-        return [-0.7, -0.7]
-    elif emotion=="fear":
-        return [-0.7, 0.7]
-    elif emotion=="surprise" and sentiment=="positive":
-        return [0.1, 0.9]
-    elif emotion=="surprise" and sentiment=="negative":
-        return [-0.1, 0.9]
-    elif emotion=="anger":
-        return [-0.4, 0.8]
-    elif emotion=="disgust":
-        return [-0.9, 0.4]
-    elif emotion=="joy":
-        return [0.7, 0.7]
-    return [0,0]
-
-def euclidean_distance(thayers_coordinates, bot_emotion):
-    bot_coordinates=bot_emotion.split(",")
-    return math.sqrt(math.pow(thayers_coordinates[0]-float(bot_coordinates[0]),2)+math.pow(thayers_coordinates[1]-float(bot_coordinates[1]),2))
 
 
 class MessageProcessor:
@@ -202,11 +159,9 @@ class MessageProcessor:
         self, output_channel: OutputChannel, tracker: DialogueStateTracker
     ) -> DialogueStateTracker:
         """Run action to extract slots and update the tracker accordingly.
-
         Args:
             output_channel: Output channel associated with the incoming user message.
             tracker: A tracker representing a conversation state.
-
         Returns:
             the given (updated) tracker
         """
@@ -216,6 +171,9 @@ class MessageProcessor:
         extraction_events = await action_extract_slots.run(
             output_channel, self.nlg, tracker, self.domain
         )
+
+        await self._send_bot_messages(extraction_events, tracker, output_channel)
+
         tracker.update_with_events(extraction_events, self.domain)
 
         events_as_str = "\n".join([str(e) for e in extraction_events])
@@ -223,16 +181,15 @@ class MessageProcessor:
             f"Default action '{ACTION_EXTRACT_SLOTS}' was executed, "
             f"resulting in {len(extraction_events)} events: {events_as_str}"
         )
+
         return tracker
 
     async def predict_next_for_sender_id(
         self, sender_id: Text
     ) -> Optional[Dict[Text, Any]]:
         """Predict the next action for the given sender_id.
-
         Args:
             sender_id: Conversation ID.
-
         Returns:
             The prediction for the next action. `None` if no domain or policies loaded.
         """
@@ -250,11 +207,9 @@ class MessageProcessor:
         verbosity: EventVerbosity = EventVerbosity.AFTER_RESTART,
     ) -> Optional[Dict[Text, Any]]:
         """Predict the next action for a given conversation state.
-
         Args:
             tracker: A tracker representing a conversation state.
             verbosity: Verbosity for the returned conversation state.
-
         Returns:
             The prediction for the next action. `None` if no domain or policies loaded.
         """
@@ -271,7 +226,6 @@ class MessageProcessor:
             {"action": a, "score": p}
             for a, p in zip(self.domain.action_names_or_texts, prediction.probabilities)
         ]
-
         return {
             "scores": scores,
             "policy": prediction.policy_name,
@@ -286,11 +240,9 @@ class MessageProcessor:
         metadata: Optional[Dict] = None,
     ) -> None:
         """Check the current session in `tracker` and update it if expired.
-
         An 'action_session_start' is run if the latest tracker session has expired,
         or if the tracker does not yet contain any events (only those after the last
         restart are considered).
-
         Args:
             metadata: Data sent from client associated with the incoming user message.
             tracker: Tracker to inspect.
@@ -326,14 +278,11 @@ class MessageProcessor:
         metadata: Optional[Dict] = None,
     ) -> DialogueStateTracker:
         """Fetches tracker for `sender_id` and updates its conversation session.
-
         If a new tracker is created, `action_session_start` is run.
-
         Args:
             metadata: Data sent from client associated with the incoming user message.
             output_channel: Output channel associated with the incoming user message.
             sender_id: Conversation ID for which to fetch the tracker.
-
         Returns:
               Tracker for `sender_id`.
         """
@@ -351,12 +300,10 @@ class MessageProcessor:
     ) -> DialogueStateTracker:
         """Fetches tracker for `sender_id` and runs a session start if it's a new
         tracker.
-
         Args:
             metadata: Data sent from client associated with the incoming user message.
             output_channel: Output channel associated with the incoming user message.
             sender_id: Conversation ID for which to fetch the tracker.
-
         Returns:
               Tracker for `sender_id`.
         """
@@ -370,15 +317,12 @@ class MessageProcessor:
 
     async def get_tracker(self, conversation_id: Text) -> DialogueStateTracker:
         """Get the tracker for a conversation.
-
         In contrast to `fetch_tracker_and_update_session` this does not add any
         `action_session_start` or `session_start` events at the beginning of a
         conversation.
-
         Args:
             conversation_id: The ID of the conversation for which the history should be
                 retrieved.
-
         Returns:
             Tracker for the conversation. Creates an empty tracker in case it's a new
             conversation.
@@ -395,14 +339,11 @@ class MessageProcessor:
         self, conversation_id: Text
     ) -> List[DialogueStateTracker]:
         """Fetches all trackers for a conversation.
-
         Individual trackers are returned for each conversation session found
         for `conversation_id`.
-
         Args:
             conversation_id: The ID of the conversation for which the trackers should
                 be retrieved.
-
         Returns:
             Trackers for the conversation.
         """
@@ -416,7 +357,6 @@ class MessageProcessor:
         self, message: UserMessage, should_save_tracker: bool = True
     ) -> DialogueStateTracker:
         """Log `message` on tracker belonging to the message's conversation_id.
-
         Optionally save the tracker if `should_save_tracker` is `True`. Tracker saving
         can be skipped if the tracker returned by this method is used for further
         processing and saved at a later stage.
@@ -441,18 +381,15 @@ class MessageProcessor:
         prediction: PolicyPrediction,
     ) -> Optional[DialogueStateTracker]:
         """Execute an action for a conversation.
-
         Note that this might lead to unexpected bot behavior. Rather use an intent
         to execute certain behavior within a conversation (e.g. by using
         `trigger_external_user_uttered`).
-
         Args:
             sender_id: The ID of the conversation.
             action_name: The name of the action which should be executed.
             output_channel: The output channel which should be used for bot responses.
             nlg: The response generator.
             prediction: The prediction for the action.
-
         Returns:
             The new conversation state. Note that the new state is also persisted.
         """
@@ -472,13 +409,10 @@ class MessageProcessor:
         self, tracker: DialogueStateTracker
     ) -> Tuple[rasa.core.actions.action.Action, PolicyPrediction]:
         """Predicts the next action the bot should take after seeing x.
-
         This should be overwritten by more advanced policies to use
         ML to predict the action.
-
         Returns:
              The index of the next action and prediction of the policy.
-
         Raises:
             ActionLimitReached if the limit of actions to predict has been reached.
         """
@@ -492,32 +426,9 @@ class MessageProcessor:
             )
 
         prediction = self._predict_next_with_tracker(tracker)
-        if prediction.max_confidence_index!=0 and rasa.core.emotion.bot_emotion!="n/a":
-            if not any(prediction.probabilities[13:]):
-                selected_index=prediction.max_confidence_index
-            else:
-                actions=[]
-                probabilities=[]
-                for a, p in zip(self.domain.action_names_or_texts, prediction.probabilities):
-                    actions.append(a)
-                    probabilities.append(p)
-                for i in range(13):
-                    probabilities[i]=-1
-                top_indices=sorted(range(len(probabilities)), key=lambda x: probabilities[x])[-5:]
-                top_actions=[]
-                top_probabilities=[]
-                for i in top_indices:
-                    logger.info(str(actions[i]) + ":" + str(probabilities[i]))
-                    top_actions.append(actions[i])
-                    top_probabilities.append(probabilities[i])
-                selected_index=emotionally_closest_action(top_actions, top_indices, top_probabilities)
-                logger.info("Selected Response:" + actions[selected_index])
-        else:
-            selected_index=prediction.max_confidence_index
-        
-        
+
         action = rasa.core.actions.action.action_for_index(
-            selected_index, self.domain, self.action_endpoint
+            prediction.max_confidence_index, self.domain, self.action_endpoint
         )
 
         logger.debug(
@@ -592,10 +503,8 @@ class MessageProcessor:
         output_channel: OutputChannel,
     ) -> None:
         """Triggers an external message.
-
         Triggers an external message (like a user message, but invisible;
         used, e.g., by a reminder or the trigger_intent endpoint).
-
         Args:
             intent_name: Name of the intent to be triggered.
             entities: Entities to be passed on.
@@ -645,12 +554,10 @@ class MessageProcessor:
 
     def _check_for_unseen_features(self, parse_data: Dict[Text, Any]) -> None:
         """Warns the user if the NLU parse data contains unrecognized features.
-
         Checks intents and entities picked up by the NLU parsing
         against the domain and warns the user of those that don't match.
         Also considers a list of default intents that are valid but don't
         need to be listed in the domain.
-
         Args:
             parse_data: Message parse data to check against the domain.
         """
@@ -688,12 +595,10 @@ class MessageProcessor:
         self, message: UserMessage, only_output_properties: bool = True
     ) -> Dict[Text, Any]:
         """Interprets the passed message.
-
         Args:
             message: Message to handle.
             only_output_properties: If `True`, restrict the output to
                 Message.only_output_properties.
-
         Returns:
             Parsed data extracted from the message.
         """
@@ -717,10 +622,8 @@ class MessageProcessor:
         self, message: UserMessage, only_output_properties: bool = True
     ) -> Dict[Text, Any]:
         """Interprets the passed message.
-
         Arguments:
             message: Message to handle
-
         Returns:
             Parsed data extracted from the message.
         """
@@ -783,12 +686,10 @@ class MessageProcessor:
         self, tracker: DialogueStateTracker, should_predict_another_action: bool
     ) -> bool:
         """Check whether the maximum number of predictions has been met.
-
         Args:
             tracker: instance of DialogueStateTracker.
             should_predict_another_action: Whether the last executed action allows
             for more actions to be predicted or not.
-
         Returns:
             `True` if the limit of actions to predict has been reached.
         """
@@ -841,10 +742,8 @@ class MessageProcessor:
     @staticmethod
     def should_predict_another_action(action_name: Text) -> bool:
         """Determine whether the processor should predict another action.
-
         Args:
             action_name: Name of the latest executed action.
-
         Returns:
             `False` if `action_name` is `ACTION_LISTEN_NAME` or
             `ACTION_SESSION_START_NAME`, otherwise `True`.
@@ -886,7 +785,6 @@ class MessageProcessor:
         output_channel: OutputChannel,
     ) -> None:
         """Uses the scheduler to time a job to trigger the passed reminder.
-
         Reminders with the same `id` property will overwrite one another
         (i.e. only one of them will eventually run).
         """
@@ -1001,10 +899,8 @@ class MessageProcessor:
 
     def _has_session_expired(self, tracker: DialogueStateTracker) -> bool:
         """Determine whether the latest session in `tracker` has expired.
-
         Args:
             tracker: Tracker to inspect.
-
         Returns:
             `True` if the session in `tracker` has expired, `False` otherwise.
         """
@@ -1036,7 +932,6 @@ class MessageProcessor:
 
     async def save_tracker(self, tracker: DialogueStateTracker) -> None:
         """Save the given tracker to the tracker store.
-
         Args:
             tracker: Tracker to be saved.
         """

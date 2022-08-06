@@ -84,6 +84,48 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+import rasa.core.emotion
+import math
+
+def emotionally_closest_action(rankings):
+    closest_action=rankings[0]["intent_response_key"]
+    shortest_distance=10
+    logger.info("Possible responses:")
+    for ranking in rankings:
+        logger.info("Response: "+ranking["intent_response_key"]+"  Confidence: "+str(ranking['confidence']))
+        action_components=ranking['intent_response_key'].split(",")
+        emotion=action_components[1]
+        sentiment=action_components[2]
+        thayers_coordinates=plot_on_thayers(emotion, sentiment)
+        distance = euclidean_distance(thayers_coordinates, rasa.core.emotion.bot_emotion)
+        logger.info(str(distance))
+        if distance < shortest_distance:
+            shortest_distance=distance
+            closest_action=ranking['intent_response_key']
+    logger.info("Emotionally closest response: "+closest_action)
+    return closest_action
+
+def plot_on_thayers(emotion, sentiment):
+    if emotion=="sadness":
+        return [-0.7, -0.7]
+    elif emotion=="fear":
+        return [-0.7, 0.7]
+    elif emotion=="surprise" and sentiment=="positive":
+        return [0.1, 0.9]
+    elif emotion=="surprise" and sentiment=="negative":
+        return [-0.1, 0.9]
+    elif emotion=="anger":
+        return [-0.4, 0.8]
+    elif emotion=="disgust":
+        return [-0.9, 0.4]
+    elif emotion=="joy":
+        return [0.7, 0.7]
+    return [0,0]
+
+def euclidean_distance(thayers_coordinates, bot_emotion):
+    bot_coordinates=bot_emotion.split(",")
+    return math.sqrt(math.pow(thayers_coordinates[0]-float(bot_coordinates[0]),2)+math.pow(thayers_coordinates[1]-float(bot_coordinates[1]),2))
+
 
 def default_actions(action_endpoint: Optional[EndpointConfig] = None) -> List["Action"]:
     """List default actions."""
@@ -458,13 +500,16 @@ class ActionRetrieveResponse(ActionBotResponse):
 
         logger.debug(f"Picking response from selector of type {query_key}")
         selected = response_selector_properties[query_key]
+        logger.info(selected)
+
+        self.utter_action="utter_"+emotionally_closest_action(selected["ranking"])
 
         # Override utter action of ActionBotResponse
         # with the complete utter action retrieved from
         # the output of response selector.
-        self.utter_action = selected[RESPONSE_SELECTOR_PREDICTION_KEY][
-            RESPONSE_SELECTOR_UTTER_ACTION_KEY
-        ]
+        # self.utter_action = selected[RESPONSE_SELECTOR_PREDICTION_KEY][
+        #     RESPONSE_SELECTOR_UTTER_ACTION_KEY
+        # ]
 
         return await super().run(output_channel, nlg, tracker, domain)
 
