@@ -110,7 +110,8 @@ class RestInput(InputChannel):
         async def receive(request: Request) -> Union[ResponseStream, HTTPResponse]:
             sender_id = await self._extract_sender(request)
             text = self._extract_message(request)
-            rasa.core.emotion.bot_emotion = self._extract_emotion(request)
+            if self._extract_emotion(request)!="n/a":
+                rasa.core.emotion.bot_emotion = self._extract_emotion(request)
             logger.info("bot emotion is: " + rasa.core.emotion.bot_emotion)
             should_use_stream = rasa.utils.endpoints.bool_arg(
                 request, "stream", default=False
