@@ -88,8 +88,18 @@ import rasa.core.emotion
 import math
 
 def emotionally_closest_action(rankings):
+    logger.info(rankings)
     closest_action=rankings[0]["intent_response_key"]
-    shortest_distance=10
+    lowest_cost=10
+    alpha=1
+    distance_sum=0
+    for ranking in rankings:
+        action_components=ranking['intent_response_key'].split(",")
+        emotion=action_components[1]
+        sentiment=action_components[2]
+        thayers_coordinates=plot_on_thayers(emotion, sentiment)
+        distance = euclidean_distance(thayers_coordinates, rasa.core.emotion.bot_emotion)
+        distance_sum+=distance
     logger.info("Possible responses:")
     for ranking in rankings:
         logger.info("Response: "+ranking["intent_response_key"]+"  Confidence: "+str(ranking['confidence']))
@@ -99,8 +109,10 @@ def emotionally_closest_action(rankings):
         thayers_coordinates=plot_on_thayers(emotion, sentiment)
         distance = euclidean_distance(thayers_coordinates, rasa.core.emotion.bot_emotion)
         logger.info(str(distance))
-        if distance < shortest_distance:
-            shortest_distance=distance
+        cost = distance/distance_sum - alpha*ranking['confidence']
+        logger.info("Cost: " + str(cost))
+        if cost < lowest_cost:
+            lowest_cost=cost
             closest_action=ranking['intent_response_key']
     logger.info("Emotionally closest response: "+closest_action)
     return closest_action
