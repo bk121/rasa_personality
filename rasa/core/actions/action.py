@@ -88,6 +88,8 @@ import rasa.core.emotion
 import math
 
 def emotionally_closest_action(rankings):
+    if rasa.core.emotion.bot_emotion=='n/a':
+        return rankings[0]["intent_response_key"]
     logger.info(rankings)
     closest_action=rankings[0]["intent_response_key"]
     lowest_cost=10
